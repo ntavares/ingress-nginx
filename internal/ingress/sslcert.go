@@ -30,6 +30,8 @@ type SSLCert struct {
 	Certificate       *x509.Certificate `json:"certificate,omitempty"`
 	// CAFileName contains the path to the file with the root certificate
 	CAFileName string `json:"caFileName"`
+	// CRLFileName contains the path to the file with the CRL, when applicable
+	CRLFileName string `json:"crlFileName"`
 	// PemFileName contains the path to the file with the certificate and key concatenated
 	PemFileName string `json:"pemFileName"`
 	// FullChainPemFileName contains the path to the file with the certificate and key concatenated

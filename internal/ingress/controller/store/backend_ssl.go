@@ -83,6 +83,7 @@ func (s k8sStore) getPemCertificate(secretName string) (*ingress.SSLCert, error)
 	cert, okcert := secret.Data[apiv1.TLSCertKey]
 	key, okkey := secret.Data[apiv1.TLSPrivateKeyKey]
 	ca := secret.Data["ca.crt"]
+	crl := secret.Data["ca.crl"]
 
 	auth := secret.Data["auth"]
 
@@ -104,9 +105,9 @@ func (s k8sStore) getPemCertificate(secretName string) (*ingress.SSLCert, error)
 				return nil, fmt.Errorf("unexpected error creating SSL Cert: %v", err)
 			}
 		} else {
-			// If 'ca.crt' is also present, it will allow this secret to be used in the
+			// If 'ca.crt' (and 'ca.crl') is also present, it will allow this secret to be used in the
 			// 'nginx.ingress.kubernetes.io/auth-tls-secret' annotation
-			sslCert, err = ssl.AddOrUpdateCertAndKey(nsSecName, cert, key, ca, s.filesystem)
+			sslCert, err = ssl.AddOrUpdateCertAndKey(nsSecName, cert, key, ca, crl, s.filesystem)
 			if err != nil {
 				return nil, fmt.Errorf("unexpected error creating pem file: %v", err)
 			}
@@ -116,10 +117,13 @@ func (s k8sStore) getPemCertificate(secretName string) (*ingress.SSLCert, error)
 		if ca != nil {
 			msg += " and authentication"
 		}
+		if crl != nil {
+			msg += " and revokation"
+		}
 		glog.V(3).Info(msg)
 
 	} else if ca != nil {
-		sslCert, err = ssl.AddCertAuth(nsSecName, ca, s.filesystem)
+		sslCert, err = ssl.AddCertAuth(nsSecName, ca, crl, s.filesystem)
 
 		if err != nil {
 			return nil, err

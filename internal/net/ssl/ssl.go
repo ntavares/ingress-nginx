@@ -47,7 +47,7 @@ var (
 
 // AddOrUpdateCertAndKey creates a .pem file wth the cert and the key with the specified name
 func AddOrUpdateCertAndKey(name string, cert, key, ca []byte,
-	fs file.Filesystem) (*ingress.SSLCert, error) {
+	crl []byte, fs file.Filesystem) (*ingress.SSLCert, error) {
 
 	pemName := fmt.Sprintf("%v.pem", name)
 	pemFileName := fmt.Sprintf("%v/%v", file.DefaultSSLDirectory, pemName)
@@ -166,6 +166,32 @@ func AddOrUpdateCertAndKey(name string, cert, key, ca []byte,
 		caFile.Write(ca)
 		caFile.Write([]byte("\n"))
 		defer caFile.Close()
+
+		//        if len(crl) > 0 {
+		//            crlName := fmt.Sprintf("%v.crl", name)
+		//            crlFileName := fmt.Sprintf("%v/%v", file.DefaultSSLDirectory, crlName)
+		//
+		//            crlFile, err := fs.Create(crlFileName)
+		//            if err != nil {
+		//                return nil, fmt.Errorf("could not create CRL file %v: %v", crlFileName, err)
+		//            }
+		//
+		//            _, err = caFile.Write(crl)
+		//            if err != nil {
+		//                return nil, fmt.Errorf("could not write CRL to file %v: %v", crlFileName, err)
+		//            }
+		//            defer crlFile.Close()
+		//
+		//            return &ingress.SSLCert{
+		//                Certificate: pemCert,
+		//                CAFileName:  pemFileName,
+		//                CRLFileName: crlFileName,
+		//                PemFileName: pemFileName,
+		//                PemSHA:      file.SHA1(pemFileName),
+		//                CN:          cn.List(),
+		//                ExpireTime:  pemCert.NotAfter,
+		//            }, nil
+		//        }
 
 		return &ingress.SSLCert{
 			Certificate: pemCert,
@@ -336,10 +362,12 @@ func parseSANExtension(value []byte) (dnsNames, emailAddresses []string, ipAddre
 
 // AddCertAuth creates a .pem file with the specified CAs to be used in Cert Authentication
 // If it's already exists, it's clobbered.
-func AddCertAuth(name string, ca []byte, fs file.Filesystem) (*ingress.SSLCert, error) {
+func AddCertAuth(name string, ca []byte, crl []byte, fs file.Filesystem) (*ingress.SSLCert, error) {
 
 	caName := fmt.Sprintf("ca-%v.pem", name)
 	caFileName := fmt.Sprintf("%v/%v", file.DefaultSSLDirectory, caName)
+	crlName := fmt.Sprintf("ca-%v.crl", name)
+	crlFileName := fmt.Sprintf("%v/%v", file.DefaultSSLDirectory, crlName)
 
 	pemCABlock, _ := pem.Decode(ca)
 	if pemCABlock == nil {
@@ -365,11 +393,26 @@ func AddCertAuth(name string, ca []byte, fs file.Filesystem) (*ingress.SSLCert, 
 	if err != nil {
 		return nil, fmt.Errorf("could not write CA file %v: %v", caFileName, err)
 	}
-
 	glog.V(3).Infof("Created CA Certificate for Authentication: %v", caFileName)
+
+	if crl != nil {
+		crlFile, err := fs.Create(crlFileName)
+		if err != nil {
+			return nil, fmt.Errorf("could not write CRL file %v: %v", crlFileName, err)
+		}
+		defer crlFile.Close()
+
+		_, err = crlFile.Write(ca)
+		if err != nil {
+			return nil, fmt.Errorf("could not write CRL file %v: %v", crlFileName, err)
+		}
+		glog.V(3).Infof("Created CRL for Authentication: %v", caFileName)
+	}
+
 	return &ingress.SSLCert{
 		Certificate: pemCert,
 		CAFileName:  caFileName,
+		CRLFileName: crlFileName,
 		PemFileName: caFileName,
 		PemSHA:      file.SHA1(caFileName),
 	}, nil
